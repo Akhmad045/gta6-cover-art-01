@@ -27,6 +27,7 @@ export function parseShotQuery(search) {
     caption: query.get('caption') ?? 'Neon Coast',
     sub: query.get('sub') ?? 'vice nights, volume one',
     panel: Number(query.get('panel') ?? 0),
+    zooms: (query.get('zooms') ?? '').split(',').filter(Boolean).map(Number),
   };
 }
 

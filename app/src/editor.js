@@ -254,6 +254,7 @@ async function boot() {
     el('caption-title').value = shot.caption;
     el('caption-sub').value = shot.sub;
     resetPanels(0);
+    shot.zooms.forEach((zoom, i) => { if (state.panels[i] && zoom > 0) state.panels[i].zoom = zoom; });
     state.selected = Math.min(shot.panel, state.panels.length - 1);
     if (shot.kind === 'cover') {
       document.body.classList.add('shot-cover');
@@ -269,6 +270,7 @@ async function boot() {
   await addPhoto('samples/rooftop.jpg', 'rooftop');
   await addPhoto('samples/boulevard.jpg', 'boulevard');
   await addPhoto('samples/pier.jpg', 'pier');
+  await addPhoto('samples/harbour.jpg', 'harbour');
   resetPanels(0);
   repaint();
 }
