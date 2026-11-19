@@ -1,124 +1,188 @@
-// Colour grades: multi-stop gradient maps applied through a 256-entry lookup table, so a whole
-// cover is re-graded in one pass over its pixels. Each grade also carries the overlay tints,
-// halftone strength and lettering palette the cover composer pairs with it.
+// grades.js — colour grades and print effects for Neon Coast covers.
+//
+// A grade is a gradient map: each pixel's luminance is pushed through a
+// multi-stop colour ramp, then blended back with the original pixel so
+// detail survives, with per-grade saturation, contrast and split-tone
+// settings on top. The mapping is baked into a 256-entry lookup table per
+// channel once per grade, so grading a panel is a fast table walk over its
+// ImageData. Halftone, film grain and vignette are separate finishing
+// passes the cover composer applies after the panels are placed.
 
-/** Parses a hex colour into [r, g, b]. */
-function rgb(hex) {
-  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-}
-
-/** Builds a 256x3 LUT by interpolating the grade's stops across luminance. */
-function buildLut(stops) {
-  const pts = stops.map(([o, c]) => [o * 255, rgb(c)]);
-  const lut = new Uint8ClampedArray(256 * 3);
-  for (let v = 0; v < 256; v++) {
-    let a = pts[0], b = pts[pts.length - 1];
-    for (let i = 0; i < pts.length - 1; i++) if (v >= pts[i][0] && v <= pts[i + 1][0]) { a = pts[i]; b = pts[i + 1]; break; }
-    const t = b[0] === a[0] ? 0 : (v - a[0]) / (b[0] - a[0]);
-    for (let ch = 0; ch < 3; ch++) lut[v * 3 + ch] = a[1][ch] + (b[1][ch] - a[1][ch]) * t;
-  }
-  return lut;
-}
-
-/** The five grades: gradient-map stops, blend strength, texture and lettering colours. */
+/** Multi-stop ramps: [luminance 0..1, [r, g, b]] from shadow to highlight. */
 export const GRADES = [
   {
-    id: 'vice', name: 'Vice Sunset',
-    stops: [[0, '#1c0533'], [0.28, '#6d1160'], [0.52, '#d6336c'], [0.74, '#ff7a3c'], [1, '#ffe9a8']],
-    blend: 0.82, halftone: 0.07, titleTop: '#fff3c4', titleBottom: '#ff5e3a', script: '#ff8fb5',
+    id: 'vice', name: 'Vice Sunset', saturation: 1.18, contrast: 1.08, blend: 0.62,
+    stops: [[0, [26, 8, 46]], [0.28, [94, 20, 92]], [0.52, [232, 62, 107]], [0.74, [255, 138, 60]], [0.9, [255, 196, 107]], [1, [255, 244, 214]]],
   },
   {
-    id: 'neon', name: 'Neon Night',
-    stops: [[0, '#04060f'], [0.30, '#0e2a6e'], [0.55, '#0e7c86'], [0.78, '#ff2e88'], [1, '#c8f7ff']],
-    blend: 0.85, halftone: 0.10, titleTop: '#d9fbff', titleBottom: '#22d3ee', script: '#ff5ea8',
+    id: 'neon', name: 'Neon Night', saturation: 1.34, contrast: 1.16, blend: 0.66,
+    stops: [[0, [5, 4, 26]], [0.3, [38, 16, 92]], [0.52, [150, 32, 160]], [0.7, [255, 46, 136]], [0.86, [25, 227, 255]], [1, [240, 253, 255]]],
   },
   {
-    id: 'teal', name: 'Teal Heat',
-    stops: [[0, '#03222b'], [0.32, '#0b5563'], [0.58, '#12a594'], [0.80, '#f59e0b'], [1, '#fef3c7']],
-    blend: 0.78, halftone: 0.12, titleTop: '#fef9e7', titleBottom: '#fbbf24', script: '#5eead4',
+    id: 'teal', name: 'Teal Heat', saturation: 1.12, contrast: 1.05, blend: 0.58,
+    stops: [[0, [4, 32, 40]], [0.3, [8, 94, 106]], [0.55, [18, 165, 180]], [0.76, [94, 224, 205]], [0.9, [255, 196, 107]], [1, [255, 248, 224]]],
   },
   {
-    id: 'golden', name: 'Golden Hour',
-    stops: [[0, '#2b1206'], [0.30, '#7c2d12'], [0.55, '#c2570b'], [0.78, '#f59e0b'], [1, '#fff7d6']],
-    blend: 0.80, halftone: 0.08, titleTop: '#fffbe8', titleBottom: '#ffb300', script: '#ffe082',
+    id: 'golden', name: 'Golden Hour', saturation: 1.08, contrast: 1.03, blend: 0.55,
+    stops: [[0, [32, 16, 8]], [0.3, [112, 52, 16]], [0.55, [216, 116, 32]], [0.78, [255, 178, 64]], [1, [255, 240, 200]]],
   },
   {
-    id: 'ink', name: 'Ink Poster',
-    stops: [[0, '#14100e'], [0.34, '#59331f'], [0.52, '#c1442e'], [0.72, '#e8a34c'], [1, '#f7efdc']],
-    blend: 1.0, halftone: 0.34, titleTop: '#f7efdc', titleBottom: '#e8a34c', script: '#ff7a59',
+    id: 'ink', name: 'Ink Poster', saturation: 1.22, contrast: 1.32, blend: 0.78, posterize: 9,
+    stops: [[0, [10, 8, 24]], [0.34, [70, 16, 66]], [0.58, [198, 30, 62]], [0.8, [255, 122, 60]], [1, [250, 240, 214]]],
+  },
+  {
+    id: 'mono', name: 'Noir Mono', saturation: 0.06, contrast: 1.22, blend: 0.35,
+    stops: [[0, [8, 8, 14]], [0.4, [70, 66, 84]], [0.7, [168, 162, 178]], [1, [250, 248, 244]]],
   },
 ];
-for (const g of GRADES) g.lut = buildLut(g.stops);
 
-/** Finds a grade by id, falling back to Vice Sunset. */
 export function gradeById(id) {
   return GRADES.find((g) => g.id === id) ?? GRADES[0];
 }
 
+function rampAt(stops, t) {
+  for (let i = 1; i < stops.length; i++) {
+    if (t <= stops[i][0]) {
+      const [t0, c0] = stops[i - 1];
+      const [t1, c1] = stops[i];
+      const f = (t - t0) / Math.max(1e-6, t1 - t0);
+      return [0, 1, 2].map((k) => c0[k] + (c1[k] - c0[k]) * f);
+    }
+  }
+  return stops[stops.length - 1][1];
+}
+
 /**
- * Applies a grade to a canvas in place: luminance is remapped through the grade's LUT and
- * blended back with the original pixels, then contrast is lifted slightly so panels stay punchy.
+ * Builds the per-channel lookup tables for a grade. Each output channel is
+ * the original channel bent by an S-curve, saturation and contrast, then
+ * mixed with the gradient-map colour for that pixel's luminance — the LUT
+ * stores the luminance-independent part; applyGrade finishes the mix.
  */
+export function buildGradeLUT(grade) {
+  const lut = new Uint8ClampedArray(256 * 3);
+  for (let v = 0; v < 256; v++) {
+    const t = v / 255;
+    const curved = Math.min(1, Math.max(0, (t - 0.5) * grade.contrast + 0.5));
+    const mapped = rampAt(grade.stops, curved);
+    for (let k = 0; k < 3; k++) {
+      lut[v * 3 + k] = mapped[k];
+    }
+  }
+  return lut;
+}
+
+const lutCache = new Map();
+export function gradeLUT(grade) {
+  if (!lutCache.has(grade.id)) lutCache.set(grade.id, buildGradeLUT(grade));
+  return lutCache.get(grade.id);
+}
+
+/** Grades an offscreen canvas in place: LUT mix + saturation + posterize. */
 export function applyGrade(canvas, grade) {
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   const { width: w, height: h } = canvas;
+  if (!w || !h) return;
   const img = ctx.getImageData(0, 0, w, h);
   const d = img.data;
-  const lut = grade.lut;
-  const keep = 1 - grade.blend;
+  const lut = gradeLUT(grade);
+  const blend = grade.blend;
+  const sat = grade.saturation;
+  const levels = grade.posterize ?? 0;
   for (let i = 0; i < d.length; i += 4) {
-    const lum = (d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8;
-    const li = lum * 3;
-    d[i] = d[i] * keep + lut[li] * grade.blend;
-    d[i + 1] = d[i + 1] * keep + lut[li + 1] * grade.blend;
-    d[i + 2] = d[i + 2] * keep + lut[li + 2] * grade.blend;
+    let r = d[i], g = d[i + 1], b = d[i + 2];
+    if (levels > 1) {
+      const step = 255 / (levels - 1);
+      r = Math.round(r / step) * step;
+      g = Math.round(g / step) * step;
+      b = Math.round(b / step) * step;
+    }
+    const lum = Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b);
+    const mr = lut[lum * 3], mg = lut[lum * 3 + 1], mb = lut[lum * 3 + 2];
+    // Scale the mapped colour by the pixel's own brightness so highlights
+    // stay bright and shadows stay deep instead of flattening to the ramp.
+    const scale = (lum / 255) * 1.6 + 0.22;
+    r = r * (1 - blend) + mr * scale * blend;
+    g = g * (1 - blend) + mg * scale * blend;
+    b = b * (1 - blend) + mb * scale * blend;
+    const avg = (r + g + b) / 3;
+    d[i] = avg + (r - avg) * sat;
+    d[i + 1] = avg + (g - avg) * sat;
+    d[i + 2] = avg + (b - avg) * sat;
   }
   ctx.putImageData(img, 0, 0);
 }
 
-/** A reusable offscreen grain tile: random speckle at low alpha, drawn tiled over the cover. */
-const grainTile = (() => {
-  const c = document.createElement('canvas');
-  c.width = c.height = 140;
-  const g = c.getContext('2d');
-  const img = g.createImageData(140, 140);
-  for (let i = 0; i < img.data.length; i += 4) {
-    const v = Math.random() * 255 | 0;
-    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
-    img.data[i + 3] = 22;
-  }
-  g.putImageData(img, 0, 0);
-  return c;
-})();
+// ------------------------------------------------------------- finishing --
 
-/** Finishes a cover: halftone dots in the shadows, film grain and a soft vignette. */
-export function applyTexture(ctx, w, h, grade) {
-  if (grade.halftone > 0) {
-    ctx.save();
-    ctx.globalAlpha = grade.halftone;
-    ctx.fillStyle = '#000';
-    const step = Math.max(8, w * 0.010);
-    for (let yy = step / 2; yy < h; yy += step) {
-      for (let xx = step / 2; xx < w; xx += step) {
-        const depth = 0.25 + (yy / h) * 0.75;
-        const r = step * 0.15 * depth;
-        ctx.beginPath();
-        ctx.arc(xx, yy, r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    ctx.restore();
+let noiseTile = null;
+function getNoiseTile() {
+  if (noiseTile) return noiseTile;
+  noiseTile = document.createElement('canvas');
+  noiseTile.width = 180; noiseTile.height = 180;
+  const nctx = noiseTile.getContext('2d');
+  const img = nctx.createImageData(180, 180);
+  let a = 987654321;
+  for (let i = 0; i < img.data.length; i += 4) {
+    a = (Math.imul(a, 1103515245) + 12345) | 0;
+    const v = (a >>> 16) & 255;
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+    img.data[i + 3] = 255;
   }
+  nctx.putImageData(img, 0, 0);
+  return noiseTile;
+}
+
+/** Film grain: the noise tile at low alpha, tiled over the whole cover. */
+export function applyGrain(ctx, w, h, amount) {
+  if (amount <= 0.01) return;
+  const tile = getNoiseTile();
   ctx.save();
-  ctx.globalAlpha = 0.5;
-  const pattern = ctx.createPattern(grainTile, 'repeat');
-  ctx.fillStyle = pattern;
+  ctx.globalAlpha = amount * 0.16;
   ctx.globalCompositeOperation = 'overlay';
+  const pattern = ctx.createPattern(tile, 'repeat');
+  ctx.fillStyle = pattern;
   ctx.fillRect(0, 0, w, h);
   ctx.restore();
-  const vig = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.42, w / 2, h / 2, Math.max(w, h) * 0.78);
-  vig.addColorStop(0, 'rgba(10,0,20,0)');
-  vig.addColorStop(1, 'rgba(10,0,20,0.38)');
-  ctx.fillStyle = vig;
+}
+
+/** Vignette: a soft dark falloff toward the corners. */
+export function applyVignette(ctx, w, h, amount) {
+  if (amount <= 0.01) return;
+  const r = Math.hypot(w, h) * 0.62;
+  const g = ctx.createRadialGradient(w / 2, h / 2, r * 0.42, w / 2, h / 2, r);
+  g.addColorStop(0, 'rgba(8,2,18,0)');
+  g.addColorStop(1, `rgba(8,2,18,${0.52 * amount})`);
+  ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
+}
+
+/**
+ * Halftone dots: a regular dot grid whose radius follows local darkness,
+ * sampled from the finished cover itself. Drawn in ink colour at low alpha
+ * it gives flat shadow areas the printed-poster texture of a comic cover.
+ */
+export function applyHalftone(ctx, w, h, amount, sourceCanvas) {
+  if (amount <= 0.01) return;
+  const cell = Math.max(7, Math.round(w / 130));
+  const probe = document.createElement('canvas');
+  const pw = Math.ceil(w / cell), ph = Math.ceil(h / cell);
+  probe.width = pw; probe.height = ph;
+  const pctx = probe.getContext('2d', { willReadFrequently: true });
+  pctx.drawImage(sourceCanvas, 0, 0, pw, ph);
+  let data;
+  try { data = pctx.getImageData(0, 0, pw, ph).data; } catch { return; }
+  ctx.save();
+  ctx.fillStyle = `rgba(10,4,24,${0.34 * amount})`;
+  for (let gy = 0; gy < ph; gy++) {
+    for (let gx = 0; gx < pw; gx++) {
+      const i = (gy * pw + gx) * 4;
+      const lum = (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255;
+      const radius = (1 - lum) * cell * 0.52 * amount;
+      if (radius < 0.6) continue;
+      ctx.beginPath();
+      ctx.arc(gx * cell + cell / 2, gy * cell + cell / 2, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
 }

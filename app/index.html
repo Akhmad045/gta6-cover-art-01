@@ -4,64 +4,102 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Neon Coast Cover Studio — GTA-style cover art maker</title>
-<link rel="icon" href="data:,">
 <link rel="stylesheet" href="./style.css">
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="brand-badge">NC</span> NEON COAST <em>cover studio</em></div>
-  <p class="tagline">Your photo + a caption → multi-panel Vice City cover art, exported as a PNG. Fully offline.</p>
-  <button id="export-top" type="button" class="export-mini">Export PNG</button>
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">★</span>
+    <div>
+      <h1>Neon Coast <span>Cover Studio</span></h1>
+      <p>Multi-panel cover art in the Vice City sunset style — painted scenes, your photos, poster lettering, PNG export. Fully offline.</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <button id="undo" type="button" title="Undo">↩ Undo</button>
+    <button id="redo" type="button" title="Redo">↪ Redo</button>
+    <button id="export-top" class="primary" type="button">Export PNG</button>
+  </div>
 </header>
-<main class="app">
-  <aside class="controls">
+
+<main class="studio">
+  <aside class="rail rail-left" aria-label="Scenes, layouts and grades">
     <section>
-      <h2>Lettering</h2>
-      <label>Title <input id="title" type="text" maxlength="26" value="NEON COAST"></label>
-      <label>Subtitle <input id="subtitle" type="text" maxlength="44" value="tales from the sunset strip"></label>
-      <label>Ribbon <input id="ribbon" type="text" maxlength="52" value="ONE CITY • ONE SUMMER • NO BRAKES"></label>
+      <h2>Scenes</h2>
+      <p class="hint">Painted in code — click to fill the selected panel.</p>
+      <div id="scene-picker" class="thumb-grid"></div>
     </section>
     <section>
       <h2>Layout</h2>
-      <div id="layout-row" class="btn-row"></div>
+      <div id="layout-picker" class="chip-col"></div>
     </section>
     <section>
       <h2>Colour grade</h2>
-      <div id="grade-row" class="btn-row"></div>
+      <div id="grade-picker" class="chip-col"></div>
+    </section>
+  </aside>
+
+  <section class="stage" aria-label="Cover preview">
+    <div class="stage-head">
+      <span id="panel-status">Panel 1 selected — drag a photo on the cover to reposition it</span>
+      <span id="size-status"></span>
+    </div>
+    <div id="drop-zone" class="canvas-wrap">
+      <canvas id="cover" width="1120" height="630" aria-label="Your cover, live preview"></canvas>
+      <p class="drop-hint">Drop a photo here, or use “Add your photo” — it lands in the selected panel</p>
+    </div>
+    <div class="stage-foot">
+      <label class="zoom">Photo zoom <input id="photo-zoom" type="range" min="1" max="3" step="0.02" value="1"></label>
+      <button id="fill-all" type="button">Fill all panels with my photo</button>
+      <button id="clear-photo" type="button">Back to painted scene</button>
+    </div>
+  </section>
+
+  <aside class="rail rail-right" aria-label="Lettering, photo and export controls">
+    <section>
+      <h2>Cover lettering</h2>
+      <label>Title <input id="title" type="text" maxlength="34" value="Neon Coast"></label>
+      <label>Script subtitle <input id="subtitle" type="text" maxlength="44" value="one last ride at golden hour"></label>
+      <label>Kicker <input id="kicker" type="text" maxlength="44" value="Vice Shores · Issue 06 · Launch Week"></label>
+      <label>Heat meter <span id="heat-value">★★★★☆</span>
+        <input id="heat" type="range" min="0" max="5" step="1" value="4">
+      </label>
     </section>
     <section>
-      <h2>Panel art</h2>
-      <p id="panel-label" class="panel-label">Panel 1</p>
-      <div id="scene-row" class="btn-row"></div>
-      <label class="file-label">Your photo <input id="photo" type="file" accept="image/*"></label>
-      <label class="check-label"><input id="fill-all" type="checkbox"> Fill every panel with the photo</label>
-      <div class="btn-row">
-        <button id="fill-photo" type="button">Copy panel to all</button>
-        <button id="reset-crop" type="button">Reset crop</button>
-      </div>
-      <label>Zoom <input id="zoom" type="range" min="1" max="3" step="0.01" value="1"></label>
-      <label>Pan X <input id="panx" type="range" min="-0.5" max="0.5" step="0.01" value="0"></label>
-      <label>Pan Y <input id="pany" type="range" min="-0.5" max="0.5" step="0.01" value="0"></label>
-      <p class="hint">Tip: click a panel on the cover to select it, or drop a photo straight onto it.</p>
+      <h2>Your photo</h2>
+      <label class="file-label">Add your photo
+        <input id="photo" type="file" accept="image/*">
+      </label>
+      <p class="hint">Stays on your machine — never uploaded. Click a panel to select it, drag on the cover to pan, scroll or use the zoom slider to crop.</p>
+      <p id="photo-status" class="status">No photo yet — the panels show painted scenes.</p>
+    </section>
+    <section>
+      <h2>Print finish</h2>
+      <label>Film grain <input id="grain" type="range" min="0" max="1" step="0.02" value="0.35"></label>
+      <label>Halftone <input id="halftone" type="range" min="0" max="1" step="0.02" value="0.3"></label>
+      <label>Vignette <input id="vignette" type="range" min="0" max="1" step="0.02" value="0.55"></label>
     </section>
     <section>
       <h2>Export</h2>
       <label>Post size
         <select id="size">
-          <option value="1080x1080">Square 1080 × 1080</option>
-          <option value="1080x1350" selected>Portrait 1080 × 1350</option>
-          <option value="1920x1080">Wide 1920 × 1080</option>
-          <option value="1080x1920">Story 1080 × 1920</option>
+          <option value="wide">Landscape — 1920 × 1080</option>
+          <option value="square">Square — 1080 × 1080</option>
+          <option value="portrait">Portrait — 1080 × 1350</option>
+          <option value="story">Story — 1080 × 1920</option>
         </select>
       </label>
-      <button id="export" type="button" class="export-btn">Export PNG</button>
-      <p id="status" role="status"></p>
+      <button id="export" class="primary big" type="button">Export PNG</button>
+      <p id="status" class="status" role="status"></p>
     </section>
   </aside>
-  <section class="stage">
-    <canvas id="cover" width="1080" height="1350" aria-label="Your cover art"></canvas>
-  </section>
 </main>
+
+<footer class="footbar">
+  <span>Neon Coast Cover Studio — an original cover maker. Every scene is painted in code; no game artwork, logos or fonts.</span>
+  <span>Keyboard: arrows pan the photo · + / − zoom · Ctrl+Z undo</span>
+</footer>
+
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
