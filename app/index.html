@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Viceframe — Neon Coast Cover Maker</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main class="shell">
+  <aside class="panel" id="controls">
+    <header class="brand">
+      <h1>Viceframe</h1>
+      <p class="tagline">Turn your own photos into a multi-panel neon-coast cover. Everything stays on this machine — no upload, no network.</p>
+    </header>
+
+    <section class="group">
+      <h2>1 · Photos</h2>
+      <label class="drop" id="dropzone">
+        <input id="photo-input" type="file" accept="image/*" multiple hidden>
+        <span>Drop photos here or click to choose</span>
+      </label>
+      <div class="row wrap" id="sample-row">
+        <button type="button" class="chip" data-sample="samples/boulevard.jpg">Sample: boulevard</button>
+        <button type="button" class="chip" data-sample="samples/pier.jpg">Sample: pier</button>
+        <button type="button" class="chip" data-sample="samples/neon-night.jpg">Sample: neon night</button>
+        <button type="button" class="chip" data-sample="samples/rooftop.jpg">Sample: rooftop</button>
+      </div>
+      <div class="thumbs" id="thumbs" aria-label="Loaded photos"></div>
+    </section>
+
+    <section class="group">
+      <h2>2 · Layout &amp; panels</h2>
+      <label class="field">Layout
+        <select id="layout-select">
+          <option value="grid6">Poster grid — 6 panels</option>
+          <option value="hero">Hero &amp; side stories — 4 panels</option>
+          <option value="mosaic9">Mosaic — 9 panels</option>
+          <option value="snapshots">Tilted snapshots — 3 panels</option>
+          <option value="fullbleed">Full bleed — 1 panel</option>
+        </select>
+      </label>
+      <p class="hint">Click a panel on the cover to select it. Drag on the cover to move its photo, scroll to zoom.</p>
+      <div class="row wrap" id="panel-chips"></div>
+      <label class="field">Panel photo
+        <select id="panel-photo-select"></select>
+      </label>
+      <div class="row">
+        <button type="button" id="fill-all" class="ghost">Fill every panel with the selected photo</button>
+      </div>
+      <label class="field">Zoom <span class="val" id="zoom-val"></span>
+        <input id="zoom" type="range" min="1" max="3.5" step="0.01" value="1">
+      </label>
+      <label class="field">Move across <span class="val" id="ox-val"></span>
+        <input id="ox" type="range" min="-1" max="1" step="0.01" value="0">
+      </label>
+      <label class="field">Move down <span class="val" id="oy-val"></span>
+        <input id="oy" type="range" min="-1" max="1" step="0.01" value="0">
+      </label>
+    </section>
+
+    <section class="group">
+      <h2>3 · Words &amp; grade</h2>
+      <label class="field">Cover title
+        <input id="caption-title" type="text" maxlength="26" value="Neon Coast">
+      </label>
+      <label class="field">Subtitle
+        <input id="caption-sub" type="text" maxlength="40" value="vice nights, volume one">
+      </label>
+      <label class="field">Ribbon badge
+        <input id="caption-ribbon" type="text" maxlength="30" value="100% ORIGINAL FAN ART">
+      </label>
+      <label class="field">Colour grade
+        <select id="grade-select">
+          <option value="sunset">Vice sunset</option>
+          <option value="neon">Neon night</option>
+          <option value="tealheat">Teal heat</option>
+          <option value="golden">Golden hour</option>
+          <option value="ink">Ink poster</option>
+          <option value="none">No grade</option>
+        </select>
+      </label>
+      <label class="field">Heat (stars)
+        <input id="stars" type="range" min="0" max="5" step="1" value="5">
+      </label>
+      <div class="row wrap checks">
+        <label><input type="checkbox" id="opt-halftone" checked> Halftone title block</label>
+        <label><input type="checkbox" id="opt-grain" checked> Film grain</label>
+        <label><input type="checkbox" id="opt-vignette" checked> Vignette</label>
+        <label><input type="checkbox" id="opt-ribbon" checked> Ribbon badge</label>
+      </div>
+    </section>
+
+    <section class="group">
+      <h2>4 · Export PNG</h2>
+      <div class="row wrap">
+        <button type="button" class="export-btn" data-size="1080x1080">Square 1080×1080</button>
+        <button type="button" class="export-btn" data-size="1080x1350">Portrait 1080×1350</button>
+        <button type="button" class="export-btn" data-size="1920x1080">Wide 1920×1080</button>
+        <button type="button" class="export-btn" data-size="1080x1920">Story 1080×1920</button>
+      </div>
+      <p id="status" role="status"></p>
+    </section>
+  </aside>
+
+  <section class="stage">
+    <canvas id="stage-canvas" width="1080" height="1080" aria-label="Live cover preview"></canvas>
+    <p class="stage-hint">Live preview — an export renders this same drawing at full size.</p>
+  </section>
+</main>
+<script type="module" src="./src/editor.js"></script>
+</body>
+</html>
